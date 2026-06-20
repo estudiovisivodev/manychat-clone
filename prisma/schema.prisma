@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Automation {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // "comment_to_dm" | "story_reply" | "dm_keyword" | "story_reaction" | "story_mention"
+  status      String   @default("draft") // "draft" | "live" | "paused"
+  triggerRule Json     // stores TriggerRule config
+  flowId      String?
+  flow        Flow?    @relation(fields: [flowId], references: [id])
+  events      AutomationEvent[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Flow {
+  id          String   @id @default(cuid())
+  name        String
+  nodes       FlowNode[]
+  automations Automation[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FlowNode {
+  id        String   @id @default(cuid())
+  flowId    String
+  flow      Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  type      String   // "send_message" | "wait" | "condition" | "end" | "redirect"
+  position  Json     // {x: number, y: number}
+  data      Json     // node-specific config
+  edges     Json     @default("[]") // [{source, target, label}]
+  createdAt DateTime @default(now())
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  igUserId    String   @unique // Instagram user ID (string)
+  username    String?
+  isFollower  Boolean  @default(false)
+  lastChecked DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AutomationEvent {
+  id           String     @id @default(cuid())
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id])
+  eventType    String     // "trigger_fired" | "dm_sent" | "comment_replied" | "follow_gate_blocked" | "follow_gate_passed"
+  igUserId     String?
+  metadata     Json       @default("{}")
+  createdAt    DateTime   @default(now())
+}
