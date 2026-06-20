@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { db } from './db'
 
-const BASE = 'https://graph.facebook.com/v22.0'
+const BASE = 'https://graph.facebook.com/v25.0'
 const IG_ID = process.env.INSTAGRAM_BUSINESS_ID!
 
 async function getToken(): Promise<string> {

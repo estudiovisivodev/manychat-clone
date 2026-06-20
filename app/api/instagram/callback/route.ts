@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const redirectUri = `${appUrl}/api/instagram/callback`
 
     // Exchange code for short-lived Facebook User Token
-    const tokenUrl = new URL('https://graph.facebook.com/v22.0/oauth/access_token')
+    const tokenUrl = new URL('https://graph.facebook.com/v25.0/oauth/access_token')
     tokenUrl.searchParams.set('client_id', appId)
     tokenUrl.searchParams.set('redirect_uri', redirectUri)
     tokenUrl.searchParams.set('client_secret', appSecret)
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     // Get Page Access Token for the Estúdio Visivo page
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/accounts?access_token=${longToken}`
+      `https://graph.facebook.com/v25.0/me/accounts?access_token=${longToken}`
     )
     const pagesData = await pagesRes.json()
     const page = (pagesData.data ?? []).find(
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
       // Subscribe the Page to webhook events
       await fetch(
-        `https://graph.facebook.com/v22.0/962368243633567/subscribed_apps`,
+        `https://graph.facebook.com/v25.0/962368243633567/subscribed_apps`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
