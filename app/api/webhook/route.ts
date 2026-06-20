@@ -17,12 +17,8 @@ if (!process.env.FB_WEBHOOK_VERIFY_TOKEN) {
 }
 const VERIFY_TOKEN = process.env.FB_WEBHOOK_VERIFY_TOKEN ?? ''
 
-// Process webhook entry directly — bypasses BullMQ so it works on Vercel serverless
-function processAsync(entry: WebhookEntry) {
-  import('@/lib/automation-engine')
-    .then(({ processWebhookJob }) => processWebhookJob(entry))
-    .catch((err) => console.error('[Webhook] processing error:', err))
-}
+// Import automation engine at module level so it's ready immediately
+import { processWebhookJob } from '@/lib/automation-engine'
 
 // Facebook webhook verification
 export async function GET(req: NextRequest) {
@@ -57,6 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const entries = Array.isArray(body.entry) ? body.entry : []
+    const toProcess: WebhookEntry[] = []
 
     for (const entry of entries) {
       // Comments on media
@@ -65,7 +62,7 @@ export async function POST(req: NextRequest) {
         console.log('[Webhook] change field:', change.field, '| value:', JSON.stringify(change.value).slice(0, 300))
         if (change.field === 'comments') {
           const val = change.value
-          const webhookEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'comment',
             data: {
               id: val.id,
@@ -74,13 +71,11 @@ export async function POST(req: NextRequest) {
               media: { id: val.media?.id },
               timestamp: val.timestamp,
             },
-          }
-          console.log('[Webhook] queuing comment:', JSON.stringify(webhookEntry.data).slice(0, 200))
-          processAsync(webhookEntry)
+          })
         } else if (change.field === 'feed' && change.value?.item === 'comment') {
           // Instagram comments sometimes arrive via page/feed — handle both formats
           const val = change.value
-          const webhookEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'comment',
             data: {
               id: val.comment_id ?? val.id,
@@ -89,17 +84,13 @@ export async function POST(req: NextRequest) {
               media: { id: val.post_id ?? val.media?.id ?? '' },
               timestamp: val.created_time ?? Date.now() / 1000,
             },
-          }
-          console.log('[Webhook] queuing feed-comment:', JSON.stringify(webhookEntry.data).slice(0, 200))
-          processAsync(webhookEntry)
+          })
         }
       }
 
-      // FIX 4: DM+referral double-fire — use mutually exclusive else-if branches
       for (const messaging of entry.messaging ?? []) {
         if (messaging.message && !messaging.referral) {
-          // Pure DM — queue as 'dm'
-          const webhookEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'dm',
             data: {
               sender: messaging.sender,
@@ -107,11 +98,9 @@ export async function POST(req: NextRequest) {
               timestamp: messaging.timestamp,
               message: messaging.message,
             },
-          }
-          processAsync(webhookEntry)
+          })
         } else if (messaging.message && messaging.referral) {
-          // Click-to-DM ad — queue as story_reply only (no double-fire)
-          const storyEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'story',
             data: {
               type: 'story_reply',
@@ -119,10 +108,9 @@ export async function POST(req: NextRequest) {
               media: { id: messaging.referral.ref ?? '' },
               replyText: messaging.message?.text,
             },
-          }
-          processAsync(storyEntry)
+          })
         } else if (messaging.reaction) {
-          const storyEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'story',
             data: {
               type: 'story_reaction',
@@ -130,22 +118,27 @@ export async function POST(req: NextRequest) {
               media: { id: '' },
               reaction: messaging.reaction.emoji,
             },
-          }
-          processAsync(storyEntry)
+          })
         } else if (messaging.mention) {
-          // FIX 6: handle story_mention
-          const storyEntry: WebhookEntry = {
+          toProcess.push({
             kind: 'story',
             data: {
               type: 'story_mention',
               from: messaging.sender,
               media: { id: messaging.mention?.media?.id ?? '' },
             },
-          }
-          processAsync(storyEntry)
+          })
         }
       }
     }
+
+    // Process synchronously BEFORE returning 200 — Vercel kills fire-and-forget
+    // before async DB calls complete. Facebook allows up to 5s; our processing ~1-2s.
+    await Promise.all(
+      toProcess.map(entry =>
+        processWebhookJob(entry).catch(err => console.error('[Webhook] processing error:', err))
+      )
+    )
 
     return NextResponse.json({ status: 'ok' })
   } catch {
