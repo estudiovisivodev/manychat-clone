@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ManyChat Clone",
+  title: "OpenChat",
   description: "Instagram automation platform",
 };
 
