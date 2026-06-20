@@ -88,9 +88,12 @@ async function executeDmFlow(automationId: string, igUserId: string, rule: Trigg
     })
   }
 
-  // Follow-up DM
+  // FIX 9: follow-up DM with dm_sent log
   if (rule.followUpDm) {
     await sendDM(igUserId, rule.followUpDm)
+    await db.automationEvent.create({
+      data: { automationId, eventType: 'dm_sent', igUserId },
+    })
   }
 }
 
@@ -108,14 +111,30 @@ async function handleDmEvent(data: {
     const rule = automation.triggerRule as unknown as TriggerRule
     if (!data.message.text) continue
 
+    // FIX 8: respect keywordMatchType
     if (rule.keywords && rule.keywords.length > 0) {
       const msgLower = data.message.text.toLowerCase()
-      const matched = rule.keywords.some((kw) => msgLower.includes(kw.toLowerCase()))
+      const matched =
+        rule.keywordMatchType === 'all'
+          ? (rule.keywords ?? []).every((kw) => msgLower.includes(kw.toLowerCase()))
+          : (rule.keywords ?? []).some((kw) => msgLower.includes(kw.toLowerCase()))
       if (!matched) continue
     }
 
+    // FIX 7: log trigger_fired before executing flow
+    await db.automationEvent.create({
+      data: { automationId: automation.id, eventType: 'trigger_fired', igUserId: data.sender.id },
+    })
+
     await executeDmFlow(automation.id, data.sender.id, rule)
   }
+}
+
+// FIX 5: safe typeMap with early return on unknown type
+const automationTypeMap: Record<string, string> = {
+  story_reply: 'story_reply',
+  story_reaction: 'story_reaction',
+  story_mention: 'story_mention',
 }
 
 async function handleStoryEvent(data: {
@@ -123,14 +142,11 @@ async function handleStoryEvent(data: {
   from: { id: string }
   media: { id: string }
 }) {
-  const typeMap: Record<string, string> = {
-    story_reply: 'story_reply',
-    story_reaction: 'story_reaction',
-    story_mention: 'story_mention',
-  }
+  const automationType = automationTypeMap[data.type]
+  if (!automationType) return // unknown type — do nothing safely
 
   const automations = await db.automation.findMany({
-    where: { status: 'live', type: typeMap[data.type] as 'story_reply' | 'story_reaction' | 'story_mention' },
+    where: { status: 'live', type: automationType as 'story_reply' | 'story_reaction' | 'story_mention' },
   })
 
   for (const automation of automations) {

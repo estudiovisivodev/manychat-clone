@@ -24,7 +24,7 @@ function getConnectionOptions(): ConnectionOptions {
 // at module load time (prevents crashes when Redis is unavailable).
 let _queue: Queue | null = null
 
-function getWebhookQueue(): Queue {
+export function getWebhookQueue(): Queue {
   if (!_queue) {
     _queue = new Queue('webhook-events', { connection: getConnectionOptions() })
   }
