@@ -25,6 +25,26 @@ async function getUserToken(): Promise<string> {
   return process.env.FB_PAGE_ACCESS_TOKEN!
 }
 
+async function getIgBusinessToken(): Promise<string | null> {
+  try {
+    const setting = await db.appSetting.findUnique({ where: { key: 'ig_business_access_token' } })
+    if (setting?.value) return setting.value
+  } catch {
+    // fall through
+  }
+  return process.env.IG_BUSINESS_ACCESS_TOKEN ?? null
+}
+
+async function getIgBusinessId(): Promise<string> {
+  try {
+    const setting = await db.appSetting.findUnique({ where: { key: 'ig_business_user_id' } })
+    if (setting?.value) return setting.value
+  } catch {
+    // fall through
+  }
+  return IG_ID
+}
+
 async function fbGet(path: string, params: Record<string, string> = {}) {
   const token = await getToken()
   const url = `${BASE}${path}`
@@ -43,14 +63,19 @@ async function fbPost(path: string, body: Record<string, unknown> = {}) {
   return response.data
 }
 
-// Private Reply to a comment via graph.instagram.com + User Access Token
+// Private Reply to a comment via graph.instagram.com + Instagram Business Token
 export async function sendPrivateReply(commentId: string, message: string) {
-  const token = await getUserToken()
+  const igToken = await getIgBusinessToken()
+  if (!igToken) {
+    console.error('[Facebook] sendPrivateReply: no ig_business_access_token — connect via Instagram Business Login in Settings')
+    throw new Error('Instagram Business token not configured')
+  }
+  const igUserId = await getIgBusinessId()
   try {
     await axios.post(
-      `${IG_BASE}/${IG_ID}/messages`,
+      `${IG_BASE}/${igUserId}/messages`,
       { recipient: { comment_id: commentId }, message: { text: message } },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${igToken}` } }
     )
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data

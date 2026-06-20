@@ -2,6 +2,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getRecentPosts } from '@/lib/facebook'
+import { db } from '@/lib/db'
 
 async function testConnection() {
   try {
@@ -12,8 +13,18 @@ async function testConnection() {
   }
 }
 
+async function testIgBusinessConnection() {
+  try {
+    const setting = await db.appSetting.findUnique({ where: { key: 'ig_business_access_token' } })
+    return { connected: !!setting?.value }
+  } catch {
+    return { connected: false }
+  }
+}
+
 export default async function SettingsPage() {
   const connection = await testConnection()
+  const igBusiness = await testIgBusinessConnection()
   const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook`
 
   return (
@@ -51,6 +62,35 @@ export default async function SettingsPage() {
                 className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
               >
                 {connection.ok ? '↻ Reconectar Instagram' : '→ Conectar Instagram'}
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-100 shadow-sm mb-4">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-gray-700">
+              Instagram Business Login (Private Reply / DM)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-gray-500">
+              Necessário para enviar DMs privadas via resposta a comentários (Private Reply API). Use este login separado do Facebook Login acima.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Token Instagram Business</span>
+              {igBusiness.connected ? (
+                <Badge className="bg-green-100 text-green-700 border-0">Configurado</Badge>
+              ) : (
+                <Badge className="bg-yellow-100 text-yellow-700 border-0">Pendente</Badge>
+              )}
+            </div>
+            <div className="pt-1">
+              <a
+                href="/api/instagram/business-connect"
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+              >
+                {igBusiness.connected ? '↻ Reconectar Instagram Business' : '→ Conectar Instagram Business Login'}
               </a>
             </div>
           </CardContent>
