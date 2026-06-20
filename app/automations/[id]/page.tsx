@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { ArrowLeft, Pencil } from 'lucide-react'
+import type { AutomationEvent } from '@prisma/client'
 
 export default async function AutomationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -91,7 +92,7 @@ export default async function AutomationDetailPage({ params }: { params: Promise
               </p>
             ) : (
               <div className="space-y-2">
-                {automation.events.slice(0, 20).map((ev) => (
+                {automation.events.slice(0, 20).map((ev: AutomationEvent) => (
                   <div key={ev.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div className="flex items-center gap-2">
                       <div
