@@ -11,49 +11,77 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Exchange code for short-lived Instagram User Access Token
-    const form = new URLSearchParams({
-      client_id: process.env.FB_APP_ID!,
-      client_secret: process.env.FB_APP_SECRET!,
-      grant_type: 'authorization_code',
-      redirect_uri: `${appUrl}/api/instagram/callback`,
-      code,
-    })
+    const appId = process.env.FB_APP_ID!
+    const appSecret = process.env.FB_APP_SECRET!
+    const redirectUri = `${appUrl}/api/instagram/callback`
 
-    const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      body: form,
-    })
+    // Exchange code for short-lived Facebook User Token
+    const tokenUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token')
+    tokenUrl.searchParams.set('client_id', appId)
+    tokenUrl.searchParams.set('redirect_uri', redirectUri)
+    tokenUrl.searchParams.set('client_secret', appSecret)
+    tokenUrl.searchParams.set('code', code)
+
+    const tokenRes = await fetch(tokenUrl.toString())
     const tokenData = await tokenRes.json()
 
     if (!tokenData.access_token) {
-      console.error('[Instagram OAuth] token exchange failed:', tokenData)
+      console.error('[FB OAuth] token exchange failed:', tokenData)
       return NextResponse.redirect(`${appUrl}/settings?ig_error=token_exchange_failed`)
     }
 
-    // Exchange short-lived token for long-lived token (~60 days)
-    const llRes = await fetch(
-      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.FB_APP_SECRET}&access_token=${tokenData.access_token}`
-    )
+    // Exchange for long-lived User Token (~60 days)
+    const llUrl = new URL('https://graph.facebook.com/oauth/access_token')
+    llUrl.searchParams.set('grant_type', 'fb_exchange_token')
+    llUrl.searchParams.set('client_id', appId)
+    llUrl.searchParams.set('client_secret', appSecret)
+    llUrl.searchParams.set('fb_exchange_token', tokenData.access_token)
+
+    const llRes = await fetch(llUrl.toString())
     const llData = await llRes.json()
     const longToken = llData.access_token ?? tokenData.access_token
 
-    // Persist the token so the app can use it for DMs
+    // Save long-lived user token
     await db.appSetting.upsert({
-      where: { key: 'ig_user_access_token' },
-      create: { key: 'ig_user_access_token', value: longToken },
+      where: { key: 'fb_user_access_token' },
+      create: { key: 'fb_user_access_token', value: longToken },
       update: { value: longToken },
     })
-    await db.appSetting.upsert({
-      where: { key: 'ig_user_id' },
-      create: { key: 'ig_user_id', value: String(tokenData.user_id) },
-      update: { value: String(tokenData.user_id) },
-    })
 
-    console.log('[Instagram OAuth] authorized user_id:', tokenData.user_id)
+    // Get Page Access Token for the Estúdio Visivo page
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/v19.0/me/accounts?access_token=${longToken}`
+    )
+    const pagesData = await pagesRes.json()
+    const page = (pagesData.data ?? []).find(
+      (p: { id: string }) => p.id === '962368243633567'
+    )
+
+    if (page?.access_token) {
+      await db.appSetting.upsert({
+        where: { key: 'fb_page_access_token' },
+        create: { key: 'fb_page_access_token', value: page.access_token },
+        update: { value: page.access_token },
+      })
+
+      // Subscribe the Page to webhook events
+      await fetch(
+        `https://graph.facebook.com/v19.0/962368243633567/subscribed_apps`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            subscribed_fields: 'messages,messaging_postbacks,mention',
+            access_token: page.access_token,
+          }),
+        }
+      ).then(r => r.json()).then(d => console.log('[FB OAuth] page subscription:', d))
+    }
+
+    console.log('[FB OAuth] authorized successfully')
     return NextResponse.redirect(`${appUrl}/settings?ig_connected=true`)
   } catch (err) {
-    console.error('[Instagram OAuth] error:', err)
+    console.error('[FB OAuth] error:', err)
     return NextResponse.redirect(`${appUrl}/settings?ig_error=server_error`)
   }
 }
