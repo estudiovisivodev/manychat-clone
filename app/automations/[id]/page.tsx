@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { ArrowLeft, Pencil } from 'lucide-react'
-import type { AutomationEvent } from '@prisma/client'
+type AutomationEvent = { id: string; eventType: string; igUserId: string | null; createdAt: Date; automationId: string }
 
 export default async function AutomationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
