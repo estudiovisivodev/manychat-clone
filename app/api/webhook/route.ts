@@ -48,7 +48,11 @@ export async function POST(req: NextRequest) {
     }
     const body = JSON.parse(rawBody)
 
+    // Diagnostic log — shows exactly what Meta is sending
+    console.log('[Webhook] received object:', body.object, '| raw:', rawBody.slice(0, 600))
+
     if (body.object !== 'instagram' && body.object !== 'page') {
+      console.log('[Webhook] ignored — unknown object:', body.object)
       return NextResponse.json({ status: 'ignored' })
     }
 
@@ -58,6 +62,7 @@ export async function POST(req: NextRequest) {
       // Comments on media
       const changes = Array.isArray(entry.changes) ? entry.changes : []
       for (const change of changes) {
+        console.log('[Webhook] change field:', change.field, '| value:', JSON.stringify(change.value).slice(0, 300))
         if (change.field === 'comments') {
           const val = change.value
           const webhookEntry: WebhookEntry = {
@@ -70,6 +75,22 @@ export async function POST(req: NextRequest) {
               timestamp: val.timestamp,
             },
           }
+          console.log('[Webhook] queuing comment:', JSON.stringify(webhookEntry.data).slice(0, 200))
+          processAsync(webhookEntry)
+        } else if (change.field === 'feed' && change.value?.item === 'comment') {
+          // Instagram comments sometimes arrive via page/feed — handle both formats
+          const val = change.value
+          const webhookEntry: WebhookEntry = {
+            kind: 'comment',
+            data: {
+              id: val.comment_id ?? val.id,
+              text: val.message ?? val.text ?? '',
+              from: { id: val.from?.id, username: val.from?.name },
+              media: { id: val.post_id ?? val.media?.id ?? '' },
+              timestamp: val.created_time ?? Date.now() / 1000,
+            },
+          }
+          console.log('[Webhook] queuing feed-comment:', JSON.stringify(webhookEntry.data).slice(0, 200))
           processAsync(webhookEntry)
         }
       }
