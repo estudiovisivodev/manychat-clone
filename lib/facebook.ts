@@ -2,6 +2,7 @@ import axios from 'axios'
 import { db } from './db'
 
 const BASE = 'https://graph.facebook.com/v25.0'
+const IG_BASE = 'https://graph.instagram.com/v21.0'
 const IG_ID = process.env.INSTAGRAM_BUSINESS_ID!
 
 async function getToken(): Promise<string> {
@@ -10,6 +11,16 @@ async function getToken(): Promise<string> {
     if (setting?.value) return setting.value
   } catch {
     // DB unavailable — fall through to env var
+  }
+  return process.env.FB_PAGE_ACCESS_TOKEN!
+}
+
+async function getUserToken(): Promise<string> {
+  try {
+    const setting = await db.appSetting.findUnique({ where: { key: 'fb_user_access_token' } })
+    if (setting?.value) return setting.value
+  } catch {
+    // fall through
   }
   return process.env.FB_PAGE_ACCESS_TOKEN!
 }
@@ -32,13 +43,15 @@ async function fbPost(path: string, body: Record<string, unknown> = {}) {
   return response.data
 }
 
-// Private Reply to a comment — uses comment_id, requires only instagram_manage_comments
+// Private Reply to a comment via graph.instagram.com + User Access Token
 export async function sendPrivateReply(commentId: string, message: string) {
+  const token = await getUserToken()
   try {
-    await fbPost(`/${IG_ID}/messages`, {
-      recipient: { comment_id: commentId },
-      message: { text: message },
-    })
+    await axios.post(
+      `${IG_BASE}/${IG_ID}/messages`,
+      { recipient: { comment_id: commentId }, message: { text: message } },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data
     console.error('[Facebook] sendPrivateReply failed:', JSON.stringify(data ?? err))
