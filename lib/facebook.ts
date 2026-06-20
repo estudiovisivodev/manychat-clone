@@ -63,12 +63,21 @@ async function fbPost(path: string, body: Record<string, unknown> = {}) {
   return response.data
 }
 
-// Private Reply to a comment — uses comment_id on graph.facebook.com
-// Requires instagram_manage_messages (same permission as sendDM, but this is the
-// correct flow for comment triggers: Instagram routes it as a Private Reply in-app)
+async function igPost(path: string, body: Record<string, unknown> = {}) {
+  const token = await getIgBusinessToken()
+  if (!token) throw new Error('IG_BUSINESS_ACCESS_TOKEN not configured')
+  const igUserId = await getIgBusinessId()
+  const url = `${IG_BASE}/${igUserId}${path}`
+  const response = await axios.post(url, body, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+// Private Reply via comment_id — new Instagram Business API on graph.instagram.com
 export async function sendPrivateReply(commentId: string, message: string) {
   try {
-    await fbPost(`/${IG_ID}/messages`, {
+    await igPost('/messages', {
       recipient: { comment_id: commentId },
       message: { text: message },
     })
@@ -81,10 +90,9 @@ export async function sendPrivateReply(commentId: string, message: string) {
 
 export async function sendDM(recipientIgId: string, message: string) {
   try {
-    await fbPost(`/${IG_ID}/messages`, {
+    await igPost('/messages', {
       recipient: { id: recipientIgId },
       message: { text: message },
-      messaging_type: 'RESPONSE',
     })
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data
@@ -99,12 +107,10 @@ export async function sendDMWithButton(
   buttonLabel: string,
   buttonUrl: string
 ) {
-  // Instagram DMs don't support button templates — send URL inline in message text
   const text = `${message}\n\n${buttonLabel}: ${buttonUrl}`
-  await fbPost(`/${IG_ID}/messages`, {
+  await igPost('/messages', {
     recipient: { id: recipientIgId },
     message: { text },
-    messaging_type: 'RESPONSE',
   })
 }
 
