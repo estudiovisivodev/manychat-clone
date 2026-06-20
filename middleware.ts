@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/webhook', '/api/instagram/connect', '/api/instagram/callback']
+const PUBLIC_PATHS = ['/login', '/privacy', '/api/auth/login', '/api/auth/logout', '/api/webhook', '/api/instagram/connect', '/api/instagram/callback']
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
