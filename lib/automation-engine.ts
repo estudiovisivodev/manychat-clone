@@ -4,6 +4,7 @@ import { checkIsFollower } from './follow-gate'
 import type { TriggerRule, WebhookEntry } from '@/types'
 
 export async function processWebhookJob(entry: WebhookEntry) {
+  console.log('[Engine] processing', entry.kind, JSON.stringify(entry.data).slice(0, 200))
   if (entry.kind === 'comment') {
     await handleCommentEvent(entry.data)
   } else if (entry.kind === 'dm') {
@@ -23,12 +24,16 @@ async function handleCommentEvent(data: {
   const automations = await db.automation.findMany({
     where: { status: 'live', type: 'comment_to_dm' },
   })
+  console.log(`[Engine] comment from @${data.from.username ?? data.from.id}: "${data.text}" — ${automations.length} live automation(s)`)
 
   for (const automation of automations) {
     const rule = automation.triggerRule as unknown as TriggerRule
 
     // Check post filter
-    if (rule.postId && rule.postId !== data.media.id) continue
+    if (rule.postId && rule.postId !== data.media.id) {
+      console.log(`[Engine] automation ${automation.id}: skipped — post filter mismatch`)
+      continue
+    }
 
     // Check keyword filter
     if (rule.keywords && rule.keywords.length > 0) {
@@ -37,7 +42,10 @@ async function handleCommentEvent(data: {
         rule.keywordMatchType === 'all'
           ? rule.keywords.every((kw) => commentLower.includes(kw.toLowerCase()))
           : rule.keywords.some((kw) => commentLower.includes(kw.toLowerCase()))
-      if (!matched) continue
+      if (!matched) {
+        console.log(`[Engine] automation ${automation.id}: skipped — keyword mismatch`)
+        continue
+      }
     }
 
     // Reply to comment
@@ -50,6 +58,7 @@ async function handleCommentEvent(data: {
     await db.automationEvent.create({
       data: { automationId: automation.id, eventType: 'trigger_fired', igUserId: data.from.id },
     })
+    console.log(`[Engine] automation ${automation.id}: trigger_fired — sending DM to ${data.from.id}`)
 
     await executeDmFlow(automation.id, data.from.id, rule)
   }
@@ -74,10 +83,12 @@ async function executeDmFlow(automationId: string, igUserId: string, rule: Trigg
 
   // Send opening DM (only after passing the gate, or if gate is disabled)
   if (rule.openingDm) {
+    console.log(`[Engine] sending DM to ${igUserId}: "${rule.openingDm.slice(0, 50)}"`)
     await sendDM(igUserId, rule.openingDm)
     await db.automationEvent.create({
       data: { automationId, eventType: 'dm_sent', igUserId },
     })
+    console.log(`[Engine] DM sent OK to ${igUserId}`)
   }
 
   // Send link button DM
