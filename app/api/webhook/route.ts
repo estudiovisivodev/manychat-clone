@@ -4,11 +4,15 @@ import { createHmac } from 'crypto'
 import type { WebhookEntry } from '@/types'
 
 async function verifySignature(req: NextRequest, body: string): Promise<boolean> {
-  const secret = process.env.FB_APP_SECRET
-  if (!secret) return true // skip verification if secret not configured (dev mode)
   const signature = req.headers.get('x-hub-signature-256') ?? ''
-  const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
-  return signature === expected
+  if (!signature) return true // no signature header — dev/test mode
+  // Accept if either the main FB app secret or the Instagram app secret matches
+  const secrets = [process.env.FB_APP_SECRET, process.env.IG_APP_SECRET].filter(Boolean) as string[]
+  if (secrets.length === 0) return true
+  return secrets.some(secret => {
+    const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+    return signature === expected
+  })
 }
 
 // FIX 10: warn on missing VERIFY_TOKEN
