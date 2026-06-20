@@ -22,10 +22,10 @@ export default async function AutomationDetailPage({ params }: { params: Promise
 
   if (!automation) notFound()
 
-  const dmsSent = automation.events.filter((e) => e.eventType === 'dm_sent').length
-  const triggersFired = automation.events.filter((e) => e.eventType === 'trigger_fired').length
-  const followGatePassed = automation.events.filter((e) => e.eventType === 'follow_gate_passed').length
-  const followGateBlocked = automation.events.filter((e) => e.eventType === 'follow_gate_blocked').length
+  const dmsSent = automation.events.filter((e: { eventType: string }) => e.eventType === 'dm_sent').length
+  const triggersFired = automation.events.filter((e: { eventType: string }) => e.eventType === 'trigger_fired').length
+  const followGatePassed = automation.events.filter((e: { eventType: string }) => e.eventType === 'follow_gate_passed').length
+  const followGateBlocked = automation.events.filter((e: { eventType: string }) => e.eventType === 'follow_gate_blocked').length
   const ctr = triggersFired > 0 ? ((dmsSent / triggersFired) * 100).toFixed(1) : '0'
 
   return (
