@@ -2,7 +2,6 @@ import axios from 'axios'
 import { db } from './db'
 
 const BASE = 'https://graph.facebook.com/v25.0'
-const IG_BASE = 'https://graph.instagram.com/v21.0'
 const IG_ID = process.env.INSTAGRAM_BUSINESS_ID!
 
 async function getToken(): Promise<string> {
@@ -35,13 +34,11 @@ async function fbPost(path: string, body: Record<string, unknown> = {}) {
 
 // Private Reply to a comment — uses comment_id, requires only instagram_manage_comments
 export async function sendPrivateReply(commentId: string, message: string) {
-  const token = await getToken()
   try {
-    await axios.post(
-      `${IG_BASE}/${IG_ID}/messages`,
-      { recipient: { comment_id: commentId }, message: { text: message } },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+    await fbPost(`/${IG_ID}/messages`, {
+      recipient: { comment_id: commentId },
+      message: { text: message },
+    })
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data
     console.error('[Facebook] sendPrivateReply failed:', JSON.stringify(data ?? err))
@@ -50,13 +47,12 @@ export async function sendPrivateReply(commentId: string, message: string) {
 }
 
 export async function sendDM(recipientIgId: string, message: string) {
-  const token = await getToken()
   try {
-    await axios.post(
-      `${IG_BASE}/${IG_ID}/messages`,
-      { recipient: { id: recipientIgId }, message: { text: message }, messaging_type: 'RESPONSE' },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+    await fbPost(`/${IG_ID}/messages`, {
+      recipient: { id: recipientIgId },
+      message: { text: message },
+      messaging_type: 'RESPONSE',
+    })
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data
     console.error('[Facebook] sendDM failed:', JSON.stringify(data ?? err))
