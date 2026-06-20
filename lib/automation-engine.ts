@@ -1,5 +1,5 @@
 import { db } from './db'
-import { sendDM, sendDMWithButton, replyToComment, likeComment } from './facebook'
+import { sendDM, sendDMWithButton, sendPrivateReply, replyToComment, likeComment } from './facebook'
 import { checkIsFollower } from './follow-gate'
 import type { TriggerRule, WebhookEntry } from '@/types'
 
@@ -60,17 +60,17 @@ async function handleCommentEvent(data: {
     })
     console.log(`[Engine] automation ${automation.id}: trigger_fired — sending DM to ${data.from.id}`)
 
-    await executeDmFlow(automation.id, data.from.id, rule)
+    await executeDmFlow(automation.id, data.from.id, rule, data.id)
   }
 }
 
-async function executeDmFlow(automationId: string, igUserId: string, rule: TriggerRule) {
+async function executeDmFlow(automationId: string, igUserId: string, rule: TriggerRule, commentId?: string) {
   // Follow Gate — must be checked BEFORE sending the opening DM
   if (rule.followGateEnabled) {
     const isFollower = await checkIsFollower(igUserId)
     if (!isFollower) {
       const msg = rule.followGateDm || 'Para receber o link, siga nosso perfil primeiro! 😊'
-      await sendDM(igUserId, msg)
+      await (commentId ? sendPrivateReply(commentId, msg) : sendDM(igUserId, msg))
       await db.automationEvent.create({
         data: { automationId, eventType: 'follow_gate_blocked', igUserId },
       })
@@ -84,7 +84,7 @@ async function executeDmFlow(automationId: string, igUserId: string, rule: Trigg
   // Send opening DM (only after passing the gate, or if gate is disabled)
   if (rule.openingDm) {
     console.log(`[Engine] sending DM to ${igUserId}: "${rule.openingDm.slice(0, 50)}"`)
-    await sendDM(igUserId, rule.openingDm)
+    await (commentId ? sendPrivateReply(commentId, rule.openingDm) : sendDM(igUserId, rule.openingDm))
     await db.automationEvent.create({
       data: { automationId, eventType: 'dm_sent', igUserId },
     })

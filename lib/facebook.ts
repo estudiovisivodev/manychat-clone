@@ -63,20 +63,15 @@ async function fbPost(path: string, body: Record<string, unknown> = {}) {
   return response.data
 }
 
-// Private Reply to a comment via graph.instagram.com + Instagram Business Token
+// Private Reply to a comment — uses comment_id on graph.facebook.com
+// Requires instagram_manage_messages (same permission as sendDM, but this is the
+// correct flow for comment triggers: Instagram routes it as a Private Reply in-app)
 export async function sendPrivateReply(commentId: string, message: string) {
-  const igToken = await getIgBusinessToken()
-  if (!igToken) {
-    console.error('[Facebook] sendPrivateReply: no ig_business_access_token — connect via Instagram Business Login in Settings')
-    throw new Error('Instagram Business token not configured')
-  }
-  const igUserId = await getIgBusinessId()
   try {
-    await axios.post(
-      `${IG_BASE}/${igUserId}/messages`,
-      { recipient: { comment_id: commentId }, message: { text: message } },
-      { headers: { Authorization: `Bearer ${igToken}` } }
-    )
+    await fbPost(`/${IG_ID}/messages`, {
+      recipient: { comment_id: commentId },
+      message: { text: message },
+    })
   } catch (err: unknown) {
     const data = (err as { response?: { data?: unknown } })?.response?.data
     console.error('[Facebook] sendPrivateReply failed:', JSON.stringify(data ?? err))
