@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
-import { getWebhookQueue } from '@/lib/queue'
 import type { WebhookEntry } from '@/types'
 
 async function verifySignature(req: NextRequest, body: string): Promise<boolean> {
@@ -18,12 +17,11 @@ if (!process.env.FB_WEBHOOK_VERIFY_TOKEN) {
 }
 const VERIFY_TOKEN = process.env.FB_WEBHOOK_VERIFY_TOKEN ?? ''
 
-// FIX 4: helper to safely add to queue without throwing
-async function safeAddToQueue(name: string, data: WebhookEntry) {
-  try {
-    const q = getWebhookQueue()
-    await q.add(name, data)
-  } catch { /* Redis unavailable */ }
+// Process webhook entry directly — bypasses BullMQ so it works on Vercel serverless
+function processAsync(entry: WebhookEntry) {
+  import('@/lib/automation-engine')
+    .then(({ processWebhookJob }) => processWebhookJob(entry))
+    .catch((err) => console.error('[Webhook] processing error:', err))
 }
 
 // Facebook webhook verification
@@ -72,7 +70,7 @@ export async function POST(req: NextRequest) {
               timestamp: val.timestamp,
             },
           }
-          await safeAddToQueue('comment', webhookEntry)
+          processAsync(webhookEntry)
         }
       }
 
@@ -89,7 +87,7 @@ export async function POST(req: NextRequest) {
               message: messaging.message,
             },
           }
-          await safeAddToQueue('dm', webhookEntry)
+          processAsync(webhookEntry)
         } else if (messaging.message && messaging.referral) {
           // Click-to-DM ad — queue as story_reply only (no double-fire)
           const storyEntry: WebhookEntry = {
@@ -101,7 +99,7 @@ export async function POST(req: NextRequest) {
               replyText: messaging.message?.text,
             },
           }
-          await safeAddToQueue('story', storyEntry)
+          processAsync(storyEntry)
         } else if (messaging.reaction) {
           const storyEntry: WebhookEntry = {
             kind: 'story',
@@ -112,7 +110,7 @@ export async function POST(req: NextRequest) {
               reaction: messaging.reaction.emoji,
             },
           }
-          await safeAddToQueue('story', storyEntry)
+          processAsync(storyEntry)
         } else if (messaging.mention) {
           // FIX 6: handle story_mention
           const storyEntry: WebhookEntry = {
@@ -123,7 +121,7 @@ export async function POST(req: NextRequest) {
               media: { id: messaging.mention?.media?.id ?? '' },
             },
           }
-          await safeAddToQueue('story', storyEntry)
+          processAsync(storyEntry)
         }
       }
     }
