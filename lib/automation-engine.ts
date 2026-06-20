@@ -56,15 +56,7 @@ async function handleCommentEvent(data: {
 }
 
 async function executeDmFlow(automationId: string, igUserId: string, rule: TriggerRule) {
-  // Send opening DM
-  if (rule.openingDm) {
-    await sendDM(igUserId, rule.openingDm)
-    await db.automationEvent.create({
-      data: { automationId, eventType: 'dm_sent', igUserId },
-    })
-  }
-
-  // Follow Gate
+  // Follow Gate — must be checked BEFORE sending the opening DM
   if (rule.followGateEnabled) {
     const isFollower = await checkIsFollower(igUserId)
     if (!isFollower) {
@@ -73,10 +65,18 @@ async function executeDmFlow(automationId: string, igUserId: string, rule: Trigg
       await db.automationEvent.create({
         data: { automationId, eventType: 'follow_gate_blocked', igUserId },
       })
-      return // stop — don't send the link
+      return // stop — don't send the opening DM or link
     }
     await db.automationEvent.create({
       data: { automationId, eventType: 'follow_gate_passed', igUserId },
+    })
+  }
+
+  // Send opening DM (only after passing the gate, or if gate is disabled)
+  if (rule.openingDm) {
+    await sendDM(igUserId, rule.openingDm)
+    await db.automationEvent.create({
+      data: { automationId, eventType: 'dm_sent', igUserId },
     })
   }
 

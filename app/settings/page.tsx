@@ -62,7 +62,7 @@ export default async function SettingsPage() {
             <div className="text-xs text-gray-500">
               <strong>Verify Token:</strong>{' '}
               <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
-                {process.env.FB_WEBHOOK_VERIFY_TOKEN}
+                {process.env.FB_WEBHOOK_VERIFY_TOKEN ? '••••••••' + process.env.FB_WEBHOOK_VERIFY_TOKEN.slice(-4) : 'not set'}
               </code>
             </div>
             <div className="text-xs text-gray-500 space-y-1">

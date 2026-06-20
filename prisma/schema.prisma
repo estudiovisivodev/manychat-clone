@@ -52,7 +52,7 @@ model Contact {
 model AutomationEvent {
   id           String     @id @default(cuid())
   automationId String
-  automation   Automation @relation(fields: [automationId], references: [id])
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
   eventType    String     // "trigger_fired" | "dm_sent" | "comment_replied" | "follow_gate_blocked" | "follow_gate_passed"
   igUserId     String?
   metadata     Json       @default("{}")

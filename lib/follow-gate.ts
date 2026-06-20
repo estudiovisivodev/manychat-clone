@@ -17,11 +17,7 @@ export async function checkIsFollower(igUserId: string): Promise<boolean> {
     // Required permission: instagram_manage_comments or pages_messaging
     const data = await fbGet(`/${IG_ID}/followers`, {
       fields: 'id',
-      // Note: this filters to check if specific user is in followers
-      // The actual endpoint and filter depend on granted API permissions.
-      // If the above endpoint is not available, use:
-      // GET /{ig-user-id}?fields=follows_count (public info only)
-      // For private follower lookup, instagram_manage_insights permission is needed.
+      limit: '200', // Instagram API max per page — for accounts with >200 followers, consider alternative verification
     })
 
     // The followers endpoint returns a paged list; check if igUserId is in list

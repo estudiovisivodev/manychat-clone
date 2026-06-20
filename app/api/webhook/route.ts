@@ -1,7 +1,16 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { createHmac } from 'crypto'
 import { getWebhookQueue } from '@/lib/queue'
 import type { WebhookEntry } from '@/types'
+
+async function verifySignature(req: NextRequest, body: string): Promise<boolean> {
+  const secret = process.env.FB_APP_SECRET
+  if (!secret) return true // skip verification if secret not configured (dev mode)
+  const signature = req.headers.get('x-hub-signature-256') ?? ''
+  const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+  return signature === expected
+}
 
 // FIX 10: warn on missing VERIFY_TOKEN
 if (!process.env.FB_WEBHOOK_VERIFY_TOKEN) {
@@ -35,7 +44,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   // FIX 2: wrap entire POST body in try/catch — always return 200
   try {
-    const body = await req.json()
+    const rawBody = await req.text()
+    if (!(await verifySignature(req, rawBody))) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+    const body = JSON.parse(rawBody)
 
     if (body.object !== 'instagram' && body.object !== 'page') {
       return NextResponse.json({ status: 'ignored' })

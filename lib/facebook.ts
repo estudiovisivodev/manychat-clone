@@ -34,18 +34,11 @@ export async function sendDMWithButton(
   buttonLabel: string,
   buttonUrl: string
 ) {
+  // Instagram DMs don't support button templates — send URL inline in message text
+  const text = `${message}\n\n${buttonLabel}: ${buttonUrl}`
   await fbPost(`/${IG_ID}/messages`, {
     recipient: { id: recipientIgId },
-    message: {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'button',
-          text: message,
-          buttons: [{ type: 'web_url', url: buttonUrl, title: buttonLabel }],
-        },
-      },
-    },
+    message: { text },
     messaging_type: 'RESPONSE',
   })
 }
