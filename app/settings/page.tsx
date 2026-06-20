@@ -45,6 +45,14 @@ export default async function SettingsPage() {
             {!connection.ok && (
               <p className="text-xs text-red-600 bg-red-50 p-3 rounded-lg">{connection.error}</p>
             )}
+            <div className="pt-1">
+              <a
+                href="/api/instagram/connect"
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                {connection.ok ? '↻ Reconectar Instagram' : '→ Conectar Instagram'}
+              </a>
+            </div>
           </CardContent>
         </Card>
 
