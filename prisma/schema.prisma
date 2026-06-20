@@ -58,3 +58,9 @@ model AutomationEvent {
   metadata     Json       @default("{}")
   createdAt    DateTime   @default(now())
 }
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
